@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"time"
 	"github.com/mohammednumaan/mini.go/go-cache/internal/cache"
 )
 
@@ -22,4 +23,16 @@ func main() {
 
 	getDeletedItem := c.Get("key1")
 	fmt.Println(getDeletedItem)
+
+	// now i check if the item is "cleaned up" after the TTL expires
+	// for now the TTL is set to 1 minute
+	c.Set("key2", "value2")
+	fmt.Println(c.Get("key2"))
+
+	c.CleanUp()
+	fmt.Println("Before 5 seconds", c.Get("key2"))
+
+	time.Sleep(5 * time.Second)
+	c.CleanUp()
+	fmt.Println("After 5 seconds", c.Get("key2"))
 }
