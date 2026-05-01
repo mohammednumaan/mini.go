@@ -68,26 +68,37 @@ func (dl *DoublyLinkedListImpl[T]) Push(data T) *DoubleNode[T] {
 }
 
 func (dl *DoublyLinkedListImpl[T]) Remove(node *DoubleNode[T]) *DoubleNode[T] {
+	if node == nil || dl.Head == nil {
+		return nil
+	}
 
 	switch {
 	case dl.Head == node && dl.Tail == node:
 		dl.Head = nil
 		dl.Tail = nil
-		return node 
+		node.Prev = nil
+		node.Next = nil
+		return node
 
 	case dl.Head == node:
 		dl.Head = dl.Head.Next
 		dl.Head.Prev = nil
+		node.Next = nil
+		node.Prev = nil
 		return node
 
 	case dl.Tail == node:
 		dl.Tail = dl.Tail.Prev
 		dl.Tail.Next = nil
+		node.Next = nil
+		node.Prev = nil
 		return node
 
 	default:
 		node.Prev.Next = node.Next
 		node.Next.Prev = node.Prev
+		node.Next = nil
+		node.Prev = nil
 		return node
 	}
 }
@@ -97,15 +108,16 @@ func (dl *DoublyLinkedListImpl[T]) RemoveTail() *DoubleNode[T] {
 }
 
 func (dl *DoublyLinkedListImpl[T]) MoveToHead(node *DoubleNode[T]) {
-	if dl.Head == nil {
+	if node == nil || dl.Head == nil || dl.Head == node {
 		return
 	}
 
 	dl.Remove(node)
+	node.Prev = nil
 	node.Next = dl.Head
 
 	dl.Head.Prev = node
-	dl.Head = node 
+	dl.Head = node
 	dl.Head.Prev = nil
 }
 
