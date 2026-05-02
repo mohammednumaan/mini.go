@@ -2,8 +2,15 @@ package cache
 
 import (
 	"github.com/mohammednumaan/mini.go/go-cache/internal/linked_list"
+	"sync"
 	"time"
 )
+
+type cacheStats struct {
+	Hits      int
+	Misses    int
+	Evictions int
+}
 
 type cacheEntry[T any] struct {
 	Key    string
@@ -15,7 +22,9 @@ type LRUCache[T any] struct {
 	capacity int
 	cache    map[string]*linkedList.DoubleNode[cacheEntry[T]]
 	list     *linkedList.DoublyLinkedListImpl[cacheEntry[T]]
+	metrics  cacheStats
 	entryTTL time.Duration
+	mu       sync.Mutex
 }
 
 func NewLRUCache[T any](capacity int, ttl time.Duration) *LRUCache[T] {
@@ -28,17 +37,24 @@ func NewLRUCache[T any](capacity int, ttl time.Duration) *LRUCache[T] {
 }
 
 func (lru *LRUCache[T]) Get(key string) (T, bool) {
+	lru.mu.Lock()
+	defer lru.mu.Unlock()
 	node, exists := lru.cache[key]
 	if !exists {
+		lru.metrics.Misses++
 		var zero T
 		return zero, false
 	}
 
 	lru.list.MoveToHead(node)
+	lru.metrics.Hits++
 	return node.Data.Value, true
 }
 
 func (lru *LRUCache[T]) Put(key string, value T) {
+	lru.mu.Lock()
+	defer lru.mu.Unlock()
+
 	node, exists := lru.cache[key]
 	if exists {
 		node.Data = cacheEntry[T]{
@@ -62,12 +78,16 @@ func (lru *LRUCache[T]) Put(key string, value T) {
 	if len(lru.cache) > lru.capacity {
 		nodeRemoved := lru.list.RemoveTail()
 		if nodeRemoved != nil {
+			lru.metrics.Evictions++
 			delete(lru.cache, nodeRemoved.Data.Key)
 		}
 	}
 }
 
 func (lru *LRUCache[T]) Delete(key string) bool {
+	lru.mu.Lock()
+	defer lru.mu.Unlock()
+
 	node, exists := lru.cache[key]
 	if !exists {
 		return false
@@ -79,6 +99,8 @@ func (lru *LRUCache[T]) Delete(key string) bool {
 }
 
 func (lru *LRUCache[T]) Keys() []string {
+	lru.mu.Lock()
+	defer lru.mu.Unlock()
 	keys := make([]string, 0, len(lru.cache))
 	curr := lru.list.GetHead()
 
@@ -91,11 +113,18 @@ func (lru *LRUCache[T]) Keys() []string {
 }
 
 func (lru *LRUCache[T]) Clear() {
+	lru.mu.Lock()
+	defer lru.mu.Unlock()
+
 	clear(lru.cache)
+	lru.metrics = cacheStats{}
 	lru.list = linkedList.NewDoublyLinkedList[cacheEntry[T]]()
 }
 
 func (lru *LRUCache[T]) Cleanup() {
+	lru.mu.Lock()
+	defer lru.mu.Unlock()
+
 	now := time.Now()
 	curr := lru.list.GetHead()
 
@@ -112,9 +141,19 @@ func (lru *LRUCache[T]) Cleanup() {
 }
 
 func (lru *LRUCache[T]) Len() int {
+	lru.mu.Lock()
+	defer lru.mu.Unlock()
 	return len(lru.cache)
 }
 
 func (lru *LRUCache[T]) Capacity() int {
+	lru.mu.Lock()
+	defer lru.mu.Unlock()
 	return lru.capacity
+}
+
+func (lru *LRUCache[T]) Stats() cacheStats {
+	lru.mu.Lock()
+	defer lru.mu.Unlock()
+	return lru.metrics
 }
